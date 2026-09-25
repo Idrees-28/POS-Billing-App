@@ -1,7 +1,19 @@
 import { useEffect, useState, useMemo } from "react";
-import {Search,Eye,Printer,X,Receipt,CreditCard,Banknote,Smartphone,FileText,
-  ShoppingBag,ChevronDown,} from "lucide-react";
+import {
+  Search,
+  Eye,
+  Printer,
+  X,
+  Receipt,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  FileText,
+  ShoppingBag,
+  ChevronDown,
+} from "lucide-react";
 
+import { getSettings } from "../../utils/settingStore";
 import "./Invoices.css";
 
 const INVOICE_STORAGE_KEY = "pos_invoices";
@@ -17,12 +29,21 @@ const readInvoices = () => {
   }
 };
 
-const money = (value) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(Number(value) || 0);
+const money = (value, currency = "INR") => {
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(Number(value) || 0);
+  } catch {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(Number(value) || 0);
+  }
+};
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -30,6 +51,7 @@ const formatDate = (value) => {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) return "—";
+
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -41,6 +63,7 @@ const formatDateTime = (value) => {
   if (!value) return "—";
 
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return "—";
 
   return date.toLocaleString("en-IN", {
@@ -71,6 +94,12 @@ function Invoices() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [paymentFilter, setPaymentFilter] = useState("All");
 
+  const [settings, setSettings] = useState(() => getSettings());
+
+  const currency = settings?.currency || "INR";
+  const formatMoney = (value) => money(value, currency);
+
+  // Keep invoices synchronized with the POS invoice store.
   useEffect(() => {
     const syncInvoices = () => {
       setInvoices(readInvoices());
@@ -82,6 +111,21 @@ function Invoices() {
     return () => {
       window.removeEventListener("invoicesUpdated", syncInvoices);
       window.removeEventListener("storage", syncInvoices);
+    };
+  }, []);
+
+  // Keep restaurant settings synchronized with the Settings page.
+  useEffect(() => {
+    const syncSettings = () => {
+      setSettings(getSettings());
+    };
+
+    window.addEventListener("settingsUpdated", syncSettings);
+    window.addEventListener("storage", syncSettings);
+
+    return () => {
+      window.removeEventListener("settingsUpdated", syncSettings);
+      window.removeEventListener("storage", syncSettings);
     };
   }, []);
 
@@ -122,6 +166,7 @@ function Invoices() {
       window.print();
     }, 150);
   };
+
   const closeDetails = () => {
     setSelectedInvoice(null);
   };
@@ -140,12 +185,28 @@ function Invoices() {
     };
   }, []);
 
+  const restaurantName = settings?.restaurantName?.trim() || "Restaurant";
+
+  const restaurantAddress = settings?.address?.trim();
+  const restaurantPhone = settings?.phone?.trim();
+  const restaurantEmail = settings?.email?.trim();
+
+  const receiptFooter = settings?.footer?.trim() || "Thank you for visiting!";
+
+  const getInvoiceTax = (invoice) => {
+    if (invoice.tax !== undefined && invoice.tax !== null) {
+      return Number(invoice.tax) || 0;
+    }
+
+    return (Number(invoice.cgst) || 0) + (Number(invoice.sgst) || 0);
+  };
+
   return (
     <div className="invoices-page">
       <div className="invoices-header">
         <div>
           <h2>Invoices</h2>
-          <p>View , manage , and print your restaurant bills.</p>
+          <p>View, manage, and print your restaurant bills.</p>
         </div>
 
         <div className="invoice-header-badge">
@@ -171,19 +232,21 @@ function Invoices() {
           </div>
           <div>
             <span>Total Revenue</span>
-            <strong>{money(totalRevenue)}</strong>
+            <strong>{formatMoney(totalRevenue)}</strong>
           </div>
         </div>
+
         <div className="invoice-stat-card">
           <div className="invoice-stat-icon orange">
             <CreditCard size={21} />
           </div>
           <div>
             <span>Total GST</span>
-            <strong>{money(totalTax)}</strong>
+            <strong>{formatMoney(totalTax)}</strong>
           </div>
         </div>
       </div>
+
       <section className="invoices-panel">
         <div className="invoices-toolbar">
           <div className="invoices-toolbar-title">
@@ -285,14 +348,14 @@ function Invoices() {
                       </div>
                     </td>
 
-                    <td>{money(invoice.subtotal)}</td>
-                    <td>{money(invoice.discount)}</td>
-                    <td>{money(invoice.cgst)}</td>
-                    <td>{money(invoice.sgst)}</td>
+                    <td>{formatMoney(invoice.subtotal)}</td>
+                    <td>{formatMoney(invoice.discount)}</td>
+                    <td>{formatMoney(invoice.cgst)}</td>
+                    <td>{formatMoney(invoice.sgst)}</td>
 
                     <td>
                       <strong className="invoice-total">
-                        {money(invoice.total)}
+                        {formatMoney(invoice.total)}
                       </strong>
                     </td>
 
@@ -382,7 +445,9 @@ function Invoices() {
         <div
           className="invoice-modal-overlay"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeDetails();
+            if (event.target === event.currentTarget) {
+              closeDetails();
+            }
           }}
         >
           <section
@@ -415,8 +480,12 @@ function Invoices() {
                   <ShoppingBag size={24} />
                 </div>
 
-                <h2>Restaurant</h2>
+                <h2>{restaurantName}</h2>
                 <p>Restaurant Billing Receipt</p>
+
+                {restaurantAddress && <p>{restaurantAddress}</p>}
+                {restaurantPhone && <p>Phone: {restaurantPhone}</p>}
+                {restaurantEmail && <p>Email: {restaurantEmail}</p>}
               </div>
 
               <div className="print-invoice-heading">
@@ -480,10 +549,11 @@ function Invoices() {
                           <strong>{item.name || "Product"}</strong>
                           {item.sku && <small>SKU: {item.sku}</small>}
                         </td>
+
                         <td>{Number(item.quantity) || 0}</td>
-                        <td>{money(item.price)}</td>
+                        <td>{formatMoney(item.price)}</td>
                         <td>
-                          {money(
+                          {formatMoney(
                             item.lineSubtotal ??
                               (Number(item.price) || 0) *
                                 (Number(item.quantity) || 0),
@@ -498,38 +568,32 @@ function Invoices() {
               <div className="print-totals">
                 <div>
                   <span>Subtotal</span>
-                  <strong>{money(selectedInvoice.subtotal)}</strong>
+                  <strong>{formatMoney(selectedInvoice.subtotal)}</strong>
                 </div>
 
                 <div>
                   <span>Discount</span>
-                  <strong>- {money(selectedInvoice.discount)}</strong>
+                  <strong>- {formatMoney(selectedInvoice.discount)}</strong>
                 </div>
 
                 <div>
                   <span>CGST</span>
-                  <strong>{money(selectedInvoice.cgst)}</strong>
+                  <strong>{formatMoney(selectedInvoice.cgst)}</strong>
                 </div>
 
                 <div>
                   <span>SGST</span>
-                  <strong>{money(selectedInvoice.sgst)}</strong>
+                  <strong>{formatMoney(selectedInvoice.sgst)}</strong>
                 </div>
 
                 <div>
                   <span>Total Tax</span>
-                  <strong>
-                    {money(
-                      selectedInvoice.tax ??
-                        Number(selectedInvoice.cgst || 0) +
-                          Number(selectedInvoice.sgst || 0),
-                    )}
-                  </strong>
+                  <strong>{formatMoney(getInvoiceTax(selectedInvoice))}</strong>
                 </div>
 
                 <div className="print-grand-total">
                   <span>Grand Total</span>
-                  <strong>{money(selectedInvoice.total)}</strong>
+                  <strong>{formatMoney(selectedInvoice.total)}</strong>
                 </div>
               </div>
 
@@ -541,17 +605,17 @@ function Invoices() {
 
                 <div>
                   <span>Amount Received</span>
-                  <strong>{money(selectedInvoice.amountReceived)}</strong>
+                  <strong>{formatMoney(selectedInvoice.amountReceived)}</strong>
                 </div>
 
                 <div>
                   <span>Change</span>
-                  <strong>{money(selectedInvoice.change)}</strong>
+                  <strong>{formatMoney(selectedInvoice.change)}</strong>
                 </div>
               </div>
 
               <div className="print-footer">
-                <p>Thank you for visiting!</p>
+                <p>{receiptFooter}</p>
                 <small>We look forward to serving you again.</small>
               </div>
             </div>

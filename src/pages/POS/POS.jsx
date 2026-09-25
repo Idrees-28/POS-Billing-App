@@ -20,96 +20,15 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { getCustomers, addCustomer } from "../../utils/customerStore";
+import { getProducts } from "../../utils/productStore";
+import { getSettings } from "../../utils/settingStore";
 
 import "./POS.css";
 
 const INVOICE_STORAGE_KEY = "pos_invoices";
 const HELD_BILLS_STORAGE_KEY = "pos_held_bills";
 
-const initialProducts = [
-  {
-    id: 1,
-    name: "Chicken Biriyani",
-    sku: "FOOD-001",
-    category: "Main Course",
-    price: 180,
-    stock: 25,
-    taxEnabled: true,
-    taxRate: 5,
-  },
-  {
-    id: 2,
-    name: "Chicken 65",
-    sku: "FOOD-002",
-    category: "Starters",
-    price: 150,
-    stock: 30,
-    taxEnabled: true,
-    taxRate: 5,
-  },
-  {
-    id: 3,
-    name: "Mutton Biriyani",
-    sku: "FOOD-003",
-    category: "Main Course",
-    price: 240,
-    stock: 15,
-    taxEnabled: true,
-    taxRate: 5,
-  },
-  {
-    id: 4,
-    name: "Veg Fried Rice",
-    sku: "FOOD-004",
-    category: "Main Course",
-    price: 130,
-    stock: 20,
-    taxEnabled: true,
-    taxRate: 5,
-  },
-  {
-    id: 5,
-    name: "French Fries",
-    sku: "SNACK-001",
-    category: "Starters",
-    price: 100,
-    stock: 40,
-    taxEnabled: true,
-    taxRate: 5,
-  },
-  {
-    id: 6,
-    name: "Fresh Lime Juice",
-    sku: "DRINK-001",
-    category: "Beverages",
-    price: 60,
-    stock: 50,
-    taxEnabled: false,
-    taxRate: 0,
-  },
-  {
-    id: 7,
-    name: "Fresh Orange Juice",
-    sku: "DRINK-002",
-    category: "Beverages",
-    price: 80,
-    stock: 35,
-    taxEnabled: false,
-    taxRate: 0,
-  },
-  {
-    id: 8,
-    name: "Mineral Water",
-    sku: "DRINK-003",
-    category: "Beverages",
-    price: 20,
-    stock: 100,
-    taxEnabled: false,
-    taxRate: 0,
-  },
-];
-
-const categories = ["All", "Main Course", "Starters", "Beverages"];
+const defaultCategories = ["All", "Main Course", "Starters", "Beverages"];
 
 const readStorage = (key, fallback = []) => {
   try {
@@ -124,15 +43,38 @@ const writeStorage = (key, value) => {
   localStorage.setItem(key, JSON.stringify(value));
 };
 
-const money = (value) =>
+const money = (value, currency = "INR") =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "INR",
+    currency: ["INR", "USD", "EUR", "GBP"].includes(currency) ? currency : "INR",
     maximumFractionDigits: 2,
   }).format(Number(value) || 0);
 
 function POS() {
-  const [products] = useState(initialProducts);
+  const [settings, setSettings] = useState(() => getSettings());
+
+  useEffect(() => {
+    const syncSettings = () => setSettings(getSettings());
+    window.addEventListener("settingsUpdated", syncSettings);
+    window.addEventListener("storage", syncSettings);
+    return () => {
+      window.removeEventListener("settingsUpdated", syncSettings);
+      window.removeEventListener("storage", syncSettings);
+    };
+  }, []);
+
+  const formatMoney = (value) => money(value, settings.currency);
+
+  const [products, setProducts] = useState(() =>
+    getProducts().map((product) => ({
+      ...product,
+      // POS uses `stock`; Products stores the available amount as `quantity`.
+      stock: Number(product.quantity ?? product.stock) || 0,
+      price: Number(product.price) || 0,
+      taxEnabled: Boolean(product.taxEnabled),
+      taxRate: Number(product.taxRate) || 0,
+    })),
+  );
 
   const [customers, setCustomers] = useState(() => getCustomers());
   const [selectedCustomer, setSelectedCustomer] = useState("1");
@@ -170,13 +112,57 @@ function POS() {
     };
   }, []);
 
+  // Keep the POS product list synchronized with the shared product store.
+  useEffect(() => {
+    const syncProducts = () => {
+      const latestProducts = getProducts();
+      setProducts(
+        latestProducts.map((product) => ({
+          ...product,
+          stock: Number(product.quantity ?? product.stock) || 0,
+          price: Number(product.price) || 0,
+          taxEnabled: Boolean(product.taxEnabled),
+          taxRate: Number(product.taxRate) || 0,
+        })),
+      );
+    };
+
+    // Read the latest saved products on mount.
+    syncProducts();
+
+    // Update when the Products page saves changes in this tab.
+    window.addEventListener("productsUpdated", syncProducts);
+
+    // Also refresh when localStorage changes in another tab or the page regains focus.
+    window.addEventListener("storage", syncProducts);
+    window.addEventListener("focus", syncProducts);
+
+    return () => {
+      window.removeEventListener("productsUpdated", syncProducts);
+      window.removeEventListener("storage", syncProducts);
+      window.removeEventListener("focus", syncProducts);
+    };
+  }, []);
+
+  const categories = useMemo(
+    () => [
+      ...defaultCategories,
+      ...new Set(
+        products
+          .map((product) => String(product.category || "").trim())
+          .filter((category) => category && !defaultCategories.includes(category)),
+      ),
+    ],
+    [products],
+  );
+
   const filteredProducts = useMemo(() => {
     const search = searchTerm.toLowerCase().trim();
 
     return products.filter((product) => {
       const matchesSearch =
-        product.name.toLowerCase().includes(search) ||
-        product.sku.toLowerCase().includes(search);
+        String(product.name ?? "").toLowerCase().includes(search) ||
+        String(product.sku ?? "").toLowerCase().includes(search);
 
       const matchesCategory =
         selectedCategory === "All" || product.category === selectedCategory;
@@ -282,25 +268,23 @@ function POS() {
 
   const discountRatio = subtotal > 0 ? discountValue / subtotal : 0;
 
-  const totalCGST = cart.reduce((total, item) => {
-    if (!item.taxEnabled) return total;
+  const totalCGST = settings.taxEnabled
+    ? cart.reduce((total, item) => {
+        if (!item.taxEnabled) return total;
+        const itemSubtotal = item.price * item.quantity;
+        const discountedSubtotal = itemSubtotal * (1 - discountRatio);
+        return total + (discountedSubtotal * (Number(settings.cgstRate) || 0)) / 100;
+      }, 0)
+    : 0;
 
-    const itemSubtotal = item.price * item.quantity;
-    const discountedSubtotal = itemSubtotal * (1 - discountRatio);
-    const cgstRate = (Number(item.taxRate) || 0) / 2;
-
-    return total + (discountedSubtotal * cgstRate) / 100;
-  }, 0);
-
-  const totalSGST = cart.reduce((total, item) => {
-    if (!item.taxEnabled) return total;
-
-    const itemSubtotal = item.price * item.quantity;
-    const discountedSubtotal = itemSubtotal * (1 - discountRatio);
-    const sgstRate = (Number(item.taxRate) || 0) / 2;
-
-    return total + (discountedSubtotal * sgstRate) / 100;
-  }, 0);
+  const totalSGST = settings.taxEnabled
+    ? cart.reduce((total, item) => {
+        if (!item.taxEnabled) return total;
+        const itemSubtotal = item.price * item.quantity;
+        const discountedSubtotal = itemSubtotal * (1 - discountRatio);
+        return total + (discountedSubtotal * (Number(settings.sgstRate) || 0)) / 100;
+      }, 0)
+    : 0;
 
   const totalTax = totalCGST + totalSGST;
   const grandTotal = Math.max(0, subtotal - discountValue + totalTax);
@@ -439,7 +423,7 @@ function POS() {
     }
 
     const invoice = {
-      id: `INV-${Date.now()}`,
+      id: `${String(settings.invoicePrefix || "INV").trim() || "INV"}-${Date.now()}`,
       createdAt: new Date().toISOString(),
       customer: { ...selectedCustomerDetails },
       items: cart.map((item) => ({
@@ -448,8 +432,10 @@ function POS() {
         sku: item.sku,
         price: item.price,
         quantity: item.quantity,
-        taxEnabled: item.taxEnabled,
-        taxRate: item.taxRate,
+        taxEnabled: Boolean(settings.taxEnabled && item.taxEnabled),
+        taxRate: settings.taxEnabled && item.taxEnabled
+          ? (Number(settings.cgstRate) || 0) + (Number(settings.sgstRate) || 0)
+          : 0,
         lineSubtotal: item.price * item.quantity,
       })),
       subtotal,
@@ -578,7 +564,7 @@ function POS() {
 
                     <div className="product-card-bottom">
                       <div>
-                        <strong>{money(product.price)}</strong>
+                        <strong>{formatMoney(product.price)}</strong>
                         <small>{product.stock - quantityInCart} in stock</small>
                       </div>
 
@@ -684,7 +670,7 @@ function POS() {
                     <div className="cart-item-info">
                       <strong>{item.name}</strong>
                       <small>
-                        {money(item.price)} × {item.quantity}
+                        {formatMoney(item.price)} × {item.quantity}
                       </small>
                       {item.taxEnabled && (
                         <small>
@@ -712,7 +698,7 @@ function POS() {
                         </button>
                       </div>
 
-                      <strong>{money(item.price * item.quantity)}</strong>
+                      <strong>{formatMoney(item.price * item.quantity)}</strong>
 
                       <button
                         className="remove-cart-item-btn"
@@ -742,11 +728,11 @@ function POS() {
 
             <div className="summary-row">
               <span>Subtotal</span>
-              <strong>{money(subtotal)}</strong>
+              <strong>{formatMoney(subtotal)}</strong>
             </div>
 
             <div className="summary-row discount-row">
-              <label htmlFor="bill-discount">Discount (₹)</label>
+              <label htmlFor="bill-discount">Discount ({settings.currency || "INR"})</label>
               <input
                 id="bill-discount"
                 type="number"
@@ -760,22 +746,22 @@ function POS() {
 
             <div className="summary-row">
               <span>CGST</span>
-              <strong>{money(totalCGST)}</strong>
+              <strong>{formatMoney(totalCGST)}</strong>
             </div>
 
             <div className="summary-row">
               <span>SGST</span>
-              <strong>{money(totalSGST)}</strong>
+              <strong>{formatMoney(totalSGST)}</strong>
             </div>
 
             <div className="summary-row">
               <span>Total Tax</span>
-              <strong>{money(totalTax)}</strong>
+              <strong>{formatMoney(totalTax)}</strong>
             </div>
 
             <div className="summary-row grand-total">
               <span>Grand Total</span>
-              <strong>{money(grandTotal)}</strong>
+              <strong>{formatMoney(grandTotal)}</strong>
             </div>
           </div>
 
@@ -826,7 +812,7 @@ function POS() {
             {paymentMethod === "Cash" && (
               <>
                 <label className="received-label" htmlFor="amount-received">
-                  Amount Received (₹)
+                  Amount Received ({settings.currency || "INR"})
                 </label>
 
                 <input
@@ -842,12 +828,12 @@ function POS() {
                 <div className="payment-result">
                   <div>
                     <span>Balance Due</span>
-                    <strong>{money(balanceAmount)}</strong>
+                    <strong>{formatMoney(balanceAmount)}</strong>
                   </div>
 
                   <div>
                     <span>Change</span>
-                    <strong>{money(changeAmount)}</strong>
+                    <strong>{formatMoney(changeAmount)}</strong>
                   </div>
                 </div>
               </>

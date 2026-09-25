@@ -9,6 +9,12 @@
 
   background-color: #111827;
   color: white;
+
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 /* LOGO */
