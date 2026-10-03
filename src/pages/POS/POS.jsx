@@ -19,16 +19,20 @@ import {
 
 import { useEffect, useMemo, useState } from "react";
 
-import { getCustomers, addCustomer } from "../../utils/customerStore";
+import {
+  getCustomers,
+  addCustomer,
+  WALK_IN_CUSTOMER,
+} from "../../utils/customerStore";
+import { createOrder } from "../../api/ordersApi";
 import { getProducts } from "../../utils/productStore";
 import { getSettings } from "../../utils/settingStore";
 
 import "./POS.css";
 
-const INVOICE_STORAGE_KEY = "pos_invoices";
 const HELD_BILLS_STORAGE_KEY = "pos_held_bills";
 
-const defaultCategories = ["All", "Main Course", "Starters", "Beverages"];
+const defaultCategories = ["All", "Main Course", "Starters", "Beverages", "Desserts"];
 
 const readStorage = (key, fallback = []) => {
   try {
@@ -65,19 +69,10 @@ function POS() {
 
   const formatMoney = (value) => money(value, settings.currency);
 
-  const [products, setProducts] = useState(() =>
-    getProducts().map((product) => ({
-      ...product,
-      // POS uses `stock`; Products stores the available amount as `quantity`.
-      stock: Number(product.quantity ?? product.stock) || 0,
-      price: Number(product.price) || 0,
-      taxEnabled: Boolean(product.taxEnabled),
-      taxRate: Number(product.taxRate) || 0,
-    })),
-  );
+  const [products, setProducts] = useState([]);
 
-  const [customers, setCustomers] = useState(() => getCustomers());
-  const [selectedCustomer, setSelectedCustomer] = useState("1");
+  const [customers, setCustomers] = useState([WALK_IN_CUSTOMER]);
+  const [selectedCustomer, setSelectedCustomer] = useState("0");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -101,9 +96,15 @@ function POS() {
   });
 
   useEffect(() => {
-    const syncCustomers = () => {
-      setCustomers(getCustomers());
+    const syncCustomers = async () => {
+      try {
+        setCustomers(await getCustomers());
+      } catch (error) {
+        console.error("Unable to load customers:", error);
+      }
     };
+
+    syncCustomers();
 
     window.addEventListener("customersUpdated", syncCustomers);
 
@@ -114,17 +115,23 @@ function POS() {
 
   // Keep the POS product list synchronized with the shared product store.
   useEffect(() => {
-    const syncProducts = () => {
-      const latestProducts = getProducts();
-      setProducts(
-        latestProducts.map((product) => ({
-          ...product,
-          stock: Number(product.quantity ?? product.stock) || 0,
-          price: Number(product.price) || 0,
-          taxEnabled: Boolean(product.taxEnabled),
-          taxRate: Number(product.taxRate) || 0,
-        })),
-      );
+    const syncProducts = async () => {
+      try {
+        const latestProducts = await getProducts();
+
+        setProducts(
+          latestProducts.map((product) => ({
+            ...product,
+            stock: Number(product.quantity ?? product.stock) || 0,
+            price: Number(product.price) || 0,
+            taxEnabled: Boolean(product.taxEnabled),
+            taxRate: Number(product.taxRate) || 0,
+          })),
+        );
+      } catch (error) {
+        console.error("Unable to load products:", error);
+        showMessage(error.message || "Unable to load products.", "error");
+      }
     };
 
     // Read the latest saved products on mount.
@@ -273,7 +280,7 @@ function POS() {
         if (!item.taxEnabled) return total;
         const itemSubtotal = item.price * item.quantity;
         const discountedSubtotal = itemSubtotal * (1 - discountRatio);
-        return total + (discountedSubtotal * (Number(settings.cgstRate) || 0)) / 100;
+        return total + (discountedSubtotal * ((Number(item.taxRate) || 0) / 2)) / 100;
       }, 0)
     : 0;
 
@@ -282,7 +289,7 @@ function POS() {
         if (!item.taxEnabled) return total;
         const itemSubtotal = item.price * item.quantity;
         const discountedSubtotal = itemSubtotal * (1 - discountRatio);
-        return total + (discountedSubtotal * (Number(settings.sgstRate) || 0)) / 100;
+        return total + (discountedSubtotal * ((Number(item.taxRate) || 0) / 2)) / 100;
       }, 0)
     : 0;
 
@@ -313,7 +320,7 @@ function POS() {
     }));
   };
 
-  const handleAddQuickCustomer = (event) => {
+  const handleAddQuickCustomer = async (event) => {
     event.preventDefault();
 
     if (!newCustomer.name.trim()) {
@@ -326,15 +333,23 @@ function POS() {
       return;
     }
 
-    const createdCustomer = addCustomer({
-      name: newCustomer.name.trim(),
-      phone: newCustomer.phone.trim(),
-      email: "",
-      company: "",
-      address: "",
-    });
+    let createdCustomer;
 
-    setCustomers(getCustomers());
+    try {
+      createdCustomer = await addCustomer({
+        name: newCustomer.name.trim(),
+        phone: newCustomer.phone.trim(),
+        email: "",
+        company: "",
+        address: "",
+      });
+
+      setCustomers(await getCustomers());
+    } catch (error) {
+      showMessage(error.message || "Failed to add customer.", "error");
+      return;
+    }
+
     setSelectedCustomer(String(createdCustomer.id));
     setNewCustomer({ name: "", phone: "" });
     setShowCustomerForm(false);
@@ -384,7 +399,7 @@ function POS() {
     }
 
     setCart(bill.cart);
-    setSelectedCustomer(String(bill.customerId || "1"));
+    setSelectedCustomer(String(bill.customerId ?? "0"));
     setDiscount(bill.discount || "");
     setPaymentMethod(bill.paymentMethod || "Cash");
     setAmountReceived(bill.amountReceived || "");
@@ -406,7 +421,7 @@ function POS() {
     showMessage("Held bill removed.");
   };
 
-  const generateBill = () => {
+  const generateBill = async () => {
     if (cart.length === 0) {
       showMessage("Please add products to the cart.", "error");
       return;
@@ -422,44 +437,34 @@ function POS() {
       return;
     }
 
-    const invoice = {
-      id: `${String(settings.invoicePrefix || "INV").trim() || "INV"}-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      customer: { ...selectedCustomerDetails },
-      items: cart.map((item) => ({
-        id: item.id,
-        name: item.name,
-        sku: item.sku,
-        price: item.price,
-        quantity: item.quantity,
-        taxEnabled: Boolean(settings.taxEnabled && item.taxEnabled),
-        taxRate: settings.taxEnabled && item.taxEnabled
-          ? (Number(settings.cgstRate) || 0) + (Number(settings.sgstRate) || 0)
-          : 0,
-        lineSubtotal: item.price * item.quantity,
-      })),
-      subtotal,
-      discount: discountValue,
-      cgst: totalCGST,
-      sgst: totalSGST,
-      tax: totalTax,
-      total: grandTotal,
-      paymentMethod,
-      amountReceived: paymentMethod === "Cash" ? received : grandTotal,
-      change: paymentMethod === "Cash" ? changeAmount : 0,
-      status: "Paid",
-    };
+    try {
+      // The backend prices the cart from Magento, creates the Magento
+      // order + invoice and returns the saved invoice.
+      const invoice = await createOrder({
+        customerId: selectedCustomer,
+        items: cart.map((item) => ({
+          sku: item.sku,
+          quantity: item.quantity,
+        })),
+        discount: discountValue,
+        taxEnabled: Boolean(settings.taxEnabled),
+        paymentMethod,
+        amountReceived: paymentMethod === "Cash" ? received : grandTotal,
+        invoiceId: `${String(settings.invoicePrefix || "INV").trim() || "INV"}-${Date.now()}`,
+      });
 
-    const existingInvoices = readStorage(INVOICE_STORAGE_KEY);
-    writeStorage(INVOICE_STORAGE_KEY, [invoice, ...existingInvoices]);
+      setCart([]);
+      setDiscount("");
+      setAmountReceived("");
 
-    window.dispatchEvent(new Event("invoicesUpdated"));
+      window.dispatchEvent(new Event("invoicesUpdated"));
+      window.dispatchEvent(new Event("productsUpdated")); // refresh stock
 
-    setCart([]);
-    setDiscount("");
-    setAmountReceived("");
-
-    showMessage(`Invoice ${invoice.id} generated successfully.`);
+      showMessage(`Invoice ${invoice.id} generated successfully.`);
+    } catch (error) {
+      console.error("Order error:", error);
+      showMessage(error.message || "Failed to create the order.", "error");
+    }
   };
 
   return (

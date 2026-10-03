@@ -1,0 +1,19 @@
+HTTP/1.1 400 Bad Request
+Server: nginx/1.30.5
+Date: Tue, 29 Sep 2026 06:23:55 GMT
+Content-Type: application/json
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-Powered-By: PHP/8.5.8
+Set-Cookie: PHPSESSID=d705161408f5ff7e77b6501a4f606f27; expires=Tue, 29 Sep 2026 07:23:55 GMT; Max-Age=3600; path=/; domain=localhost; HttpOnly; SameSite=Lax
+Set-Cookie: private_content_version=7e10ee2500880bfe5f871922a66cbdb5; expires=Fri, 26 Sep 2036 06:23:55 GMT; Max-Age=315360000; path=/; SameSite=Lax
+X-Magento-Cache-Id: 654d916952aa7748b19b76145e26bb7fd60678d990b3feebd91625e18655ef7f
+Pragma: no-cache
+Cache-Control: max-age=0, must-revalidate, no-cache, no-store
+Expires: Mon, 29 Sep 2025 06:23:55 GMT
+X-Magento-Tags: FPC
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+X-Frame-Options: SAMEORIGIN
+
+{"errors":[{"message":"Syntax Error: Unable to parse the request.","locations":[{"line":1,"column":1}]}]}

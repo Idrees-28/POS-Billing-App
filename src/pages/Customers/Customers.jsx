@@ -14,12 +14,14 @@ import {
   addCustomer,
   updateCustomer,
   deleteCustomer,
+  WALK_IN_CUSTOMER,
+  WALK_IN_ID,
 } from "../../utils/customerStore";
 
 import "./Customers.css";
 
 function Customers() {
-  const [customers, setCustomers] = useState(() => getCustomers());
+  const [customers, setCustomers] = useState([WALK_IN_CUSTOMER]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,9 +39,16 @@ function Customers() {
 
   // Keep this page synchronized with shared customer storage.
   useEffect(() => {
-    const syncCustomers = () => {
-      setCustomers(getCustomers());
+    const syncCustomers = async () => {
+      try {
+        setCustomers(await getCustomers());
+      } catch (error) {
+        console.error("Unable to load customers:", error);
+        window.alert(error.message || "Unable to load customers");
+      }
     };
+
+    syncCustomers();
 
     window.addEventListener("customersUpdated", syncCustomers);
 
@@ -87,7 +96,7 @@ function Customers() {
   };
 
   const openEditModal = (customer) => {
-    if (Number(customer.id) === 1) return;
+    if (Number(customer.id) === WALK_IN_ID) return;
 
     setEditingCustomer(customer);
 
@@ -126,7 +135,7 @@ function Customers() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!validateForm()) return;
@@ -139,22 +148,32 @@ function Customers() {
       address: formData.address.trim(),
     };
 
-    if (editingCustomer) {
-      updateCustomer(Number(editingCustomer.id), customerData);
-    } else {
-      addCustomer(customerData);
-    }
+    try {
+      if (editingCustomer) {
+        await updateCustomer(Number(editingCustomer.id), customerData);
+      } else {
+        await addCustomer(customerData);
+      }
 
-    setCustomers(getCustomers());
-    closeModal();
+      setCustomers(await getCustomers());
+      closeModal();
+    } catch (error) {
+      console.error("Save customer error:", error);
+      window.alert(error.message || "Failed to save customer");
+    }
   };
 
-  const handleConfirmDelete = () => {
-    if (!customerToDelete || Number(customerToDelete.id) === 1) return;
+  const handleConfirmDelete = async () => {
+    if (!customerToDelete || Number(customerToDelete.id) === WALK_IN_ID) return;
 
-    deleteCustomer(Number(customerToDelete.id));
-    setCustomers(getCustomers());
-    setCustomerToDelete(null);
+    try {
+      await deleteCustomer(Number(customerToDelete.id));
+      setCustomers(await getCustomers());
+      setCustomerToDelete(null);
+    } catch (error) {
+      console.error("Delete customer error:", error);
+      window.alert(error.message || "Failed to delete customer");
+    }
   };
 
   const filteredCustomers = customers.filter((customer) => {
@@ -221,7 +240,7 @@ function Customers() {
                       <button
                         className="edit-btn"
                         title="Edit customer"
-                        disabled={Number(customer.id) === 1}
+                        disabled={Number(customer.id) === WALK_IN_ID}
                         onClick={() => openEditModal(customer)}
                       >
                         <Edit size={17} />
@@ -230,11 +249,11 @@ function Customers() {
                       <button
                         className="delete-btn"
                         title={
-                          Number(customer.id) === 1
+                          Number(customer.id) === WALK_IN_ID
                             ? "Walk-in Customer cannot be deleted"
                             : "Delete customer"
                         }
-                        disabled={Number(customer.id) === 1}
+                        disabled={Number(customer.id) === WALK_IN_ID}
                         onClick={() => setCustomerToDelete(customer)}
                       >
                         <Trash2 size={17} />

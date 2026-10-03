@@ -14,17 +14,15 @@ import {
 } from "lucide-react";
 
 import { getSettings } from "../../utils/settingStore";
+import { getInvoices } from "../../api/ordersApi";
 import "./Invoices.css";
 
-const INVOICE_STORAGE_KEY = "pos_invoices";
-
-const readInvoices = () => {
+/* Invoices come from the backend (Magento order + invoice ledger). */
+const readInvoices = async () => {
   try {
-    const stored = localStorage.getItem(INVOICE_STORAGE_KEY);
-    const parsed = stored ? JSON.parse(stored) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    return await getInvoices();
   } catch (error) {
-    console.error("Unable to read invoices:", error);
+    console.error("Unable to load invoices:", error);
     return [];
   }
 };
@@ -89,7 +87,7 @@ const getPaymentIcon = (method) => {
 };
 
 function Invoices() {
-  const [invoices, setInvoices] = useState(() => readInvoices());
+  const [invoices, setInvoices] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [paymentFilter, setPaymentFilter] = useState("All");
@@ -101,9 +99,11 @@ function Invoices() {
 
   // Keep invoices synchronized with the POS invoice store.
   useEffect(() => {
-    const syncInvoices = () => {
-      setInvoices(readInvoices());
+    const syncInvoices = async () => {
+      setInvoices(await readInvoices());
     };
+
+    syncInvoices();
 
     window.addEventListener("invoicesUpdated", syncInvoices);
     window.addEventListener("storage", syncInvoices);

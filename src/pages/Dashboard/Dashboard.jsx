@@ -3,6 +3,10 @@ import {Users,Package,FileText,IndianRupee,ShoppingCart,TrendingUp,CreditCard,Ba
 Award,
 } from "lucide-react";
 
+import { getCustomers } from "../../utils/customerStore";
+import { getProducts } from "../../api/productsApi";
+import { getInvoices } from "../../api/ordersApi";
+
 import "./Dashboard.css";
 
 const readStorage = (key, fallback = []) => {
@@ -21,15 +25,31 @@ function Dashboard() {
   const [settings, setSettings] = useState({});
   const [period, setPeriod] = useState("week");
 
-  const loadDashboardData = () => {
-    const savedCustomers = readStorage("pos_customers");
-    const savedProducts = readStorage("pos_products");
-    const savedInvoices = readStorage("pos_invoices");
+  /* Customers, products and invoices come from Magento via the backend.
+     Only the display settings (currency etc.) stay in the browser. */
+  const loadDashboardData = async () => {
     const savedSettings = readStorage("pos_settings", {});
 
-    setCustomers(Array.isArray(savedCustomers) ? savedCustomers : []);
-    setProducts(Array.isArray(savedProducts) ? savedProducts : []);
-    setInvoices(Array.isArray(savedInvoices) ? savedInvoices : []);
+    const [customerResult, productResult, invoiceResult] =
+      await Promise.allSettled([
+        getCustomers(),
+        getProducts(),
+        getInvoices(),
+      ]);
+
+    if (customerResult.status === "fulfilled") {
+      // exclude the virtual walk-in customer from the customer count
+      setCustomers(customerResult.value.filter((c) => Number(c.id) !== 0));
+    }
+
+    if (productResult.status === "fulfilled") {
+      setProducts(productResult.value);
+    }
+
+    if (invoiceResult.status === "fulfilled") {
+      setInvoices(invoiceResult.value);
+    }
+
     setSettings(
       savedSettings && typeof savedSettings === "object" ? savedSettings : {},
     );

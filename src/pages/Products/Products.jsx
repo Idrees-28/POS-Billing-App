@@ -1,588 +1,1514 @@
-import { Search, Plus, Edit, Trash2, X, Package } from "lucide-react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import { useState } from "react";
-import "./Products.css";
+import {
+  Plus,
+  Search,
+  X,
+  Pencil,
+  Trash2,
+  Package,
+} from "lucide-react";
 
 import {
   getProducts,
+  getCategories,
   addProduct,
   updateProduct,
   deleteProduct,
-} from "../../utils/productStore";
+  checkProductSku,
+} from "../../api/productsApi";
 
-function Products() {
-  const [products, setProducts] = useState(() => getProducts());
+import "./Products.css";
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+/* =========================================================
+   EMPTY FORM
+========================================================= */
 
-  const [editingProduct, setEditingProduct] = useState(null);
+const EMPTY_FORM = {
+  name: "",
+  sku: "",
+  price: "",
+  quantity: 0,
+  categoryId: "",
+  taxEnabled: true,
+  taxRate: 5,
+};
 
-  const [productToDelete, setProductToDelete] = useState(null);
+/* =========================================================
+   POS CATEGORIES
+========================================================= */
 
-  const [searchTerm, setSearchTerm] = useState("");
+const POS_CATEGORY_NAMES = [
+  "Main Course",
+  "Starters",
+  "Beverages",
+  "Desserts",
+];
 
-  const [errors, setErrors] = useState({});
+/* =========================================================
+   COMPONENT
+========================================================= */
 
-  const [formData, setFormData] = useState({
-    name: "",
-    sku: "",
-    category: "Main Course",
-    price: "",
-    quantity: "",
-    taxEnabled: false,
-    taxRate: "",
-  });
+const Products = () => {
+  const [products, setProducts] =
+    useState([]);
 
-  const categories = [
-    "Main Course",
-    "Starters",
-    "Beverages",
-    "Desserts",
-    "Snacks",
-  ];
+  const [categories, setCategories] =
+    useState([]);
 
-  const gstRates = [0, 5, 12, 18, 28];
+  const [loading, setLoading] =
+    useState(true);
 
-// Filter Products
+  const [saving, setSaving] =
+    useState(false);
 
-  const filteredProducts = products.filter((product) => {
-    const searchValue = searchTerm.toLowerCase().trim();
+  const [search, setSearch] =
+    useState("");
 
-    return (
-      product.name.toLowerCase().includes(searchValue) ||
-      product.sku.toLowerCase().includes(searchValue)
-    );
-  });
+  const [showModal, setShowModal] =
+    useState(false);
 
-// Open add modal
+  const [
+    showDeleteModal,
+    setShowDeleteModal,
+  ] = useState(false);
 
-  const handleAddProduct = () => {
-    setEditingProduct(null);
+  const [
+    editingProduct,
+    setEditingProduct,
+  ] = useState(null);
 
-    setFormData({
-      name: "",
-      sku: "",
-      category: "Main Course",
-      price: "",
-      quantity: "",
-      taxEnabled: false,
-      taxRate: "",
+  const [
+    productToDelete,
+    setProductToDelete,
+  ] = useState(null);
+
+  const [form, setForm] =
+    useState({
+      ...EMPTY_FORM,
     });
 
-    setErrors({});
+  const [error, setError] =
+    useState("");
 
-    setIsModalOpen(true);
+  /* =======================================================
+     LOAD DATA
+  ======================================================= */
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const [
+        productsData,
+        categoriesData,
+      ] = await Promise.all([
+        getProducts(),
+        getCategories(),
+      ]);
+
+      console.log(
+        "PRODUCTS FROM BACKEND:",
+        productsData
+      );
+
+      console.log(
+        "CATEGORIES FROM BACKEND:",
+        categoriesData
+      );
+
+      setProducts(
+        Array.isArray(
+          productsData
+        )
+          ? productsData
+          : []
+      );
+
+      const posCategories =
+        (
+          Array.isArray(
+            categoriesData
+          )
+            ? categoriesData
+            : []
+        )
+          .filter((category) =>
+            POS_CATEGORY_NAMES.includes(
+              category.name
+            )
+          )
+          .sort(
+            (a, b) =>
+              POS_CATEGORY_NAMES.indexOf(
+                a.name
+              ) -
+              POS_CATEGORY_NAMES.indexOf(
+                b.name
+              )
+          );
+
+      setCategories(
+        posCategories
+      );
+    } catch (err) {
+      console.error(
+        "LOAD DATA ERROR:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "Failed to load products"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-// Open edit Moral
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const handleEditProduct = (product) => {
-    setEditingProduct(product);
+  /* =======================================================
+     SEARCH
+  ======================================================= */
 
-    setFormData({
-      name: product.name,
-      sku: product.sku,
-      category: product.category,
-      price: product.price,
-      quantity: product.quantity,
-      taxEnabled: product.taxEnabled,
-      taxRate: product.taxEnabled ? product.taxRate : "",
-    });
+  const filteredProducts =
+    useMemo(() => {
+      const value =
+        search
+          .trim()
+          .toLowerCase();
 
-    setErrors({});
+      if (!value) {
+        return products;
+      }
 
-    setIsModalOpen(true);
-  };
+      return products.filter(
+        (product) =>
+          String(
+            product.name || ""
+          )
+            .toLowerCase()
+            .includes(value) ||
+          String(
+            product.sku || ""
+          )
+            .toLowerCase()
+            .includes(value) ||
+          String(
+            product.category || ""
+          )
+            .toLowerCase()
+            .includes(value)
+      );
+    }, [
+      products,
+      search,
+    ]);
 
-// Close Modal
+  /* =======================================================
+     ADD
+  ======================================================= */
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingProduct(null);
-    setErrors({});
-  };
+  const handleAddProduct =
+    () => {
+      setEditingProduct(null);
 
-// Form change
+      setForm({
+        ...EMPTY_FORM,
+      });
 
-  const handleChange = (event) => {
-    const { name, value, type, checked } = event.target;
+      setError("");
 
-    setFormData((previous) => ({
-      ...previous,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-
-    setErrors((previous) => ({
-      ...previous,
-      [name]: "",
-    }));
-  };
-
-  // Validation
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Product name is required";
-    }
-
-    if (!formData.sku.trim()) {
-      newErrors.sku = "SKU is required";
-    }
-
-    if (!formData.category) {
-      newErrors.category = "Category is required";
-    }
-
-    if (formData.price === "" || Number(formData.price) <= 0) {
-      newErrors.price = "Enter a valid price";
-    }
-
-    if (formData.quantity === "" || Number(formData.quantity) < 0) {
-      newErrors.quantity = "Enter a valid quantity";
-    }
-
-    if (formData.taxEnabled && formData.taxRate === "") {
-      newErrors.taxRate = "Select GST rate";
-    }
-
-    // Check duplicate SKU
-    const duplicateSku = products.some(
-      (product) =>
-        product.sku.toLowerCase() === formData.sku.trim().toLowerCase() &&
-        product.id !== editingProduct?.id,
-    );
-
-    if (duplicateSku) {
-      newErrors.sku = "SKU already exists";
-    }
-
-    setErrors(newErrors);
-
-    return Object.keys(newErrors).length === 0;
-  };
-
-// Save Product
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
-    const productData = {
-      name: formData.name.trim(),
-      sku: formData.sku.trim().toUpperCase(),
-      category: formData.category,
-      price: Number(formData.price),
-      quantity: Number(formData.quantity),
-      taxEnabled: formData.taxEnabled,
-      taxRate: formData.taxEnabled ? Number(formData.taxRate) : 0,
+      setShowModal(true);
     };
 
-    if (editingProduct) {
-      updateProduct(editingProduct.id, productData);
+  /* =======================================================
+     EDIT
+  ======================================================= */
 
-      const updatedProducts = getProducts();
+  const handleEditProduct =
+    (product) => {
+      console.log(
+        "EDIT PRODUCT:",
+        product
+      );
 
-      setProducts(updatedProducts);
-    } else {
-      addProduct(productData);
+      let categoryId =
+        "";
 
-      const updatedProducts = getProducts();
+      /* ---------------------------------------------------
+         FIND CATEGORY BY ID
+      --------------------------------------------------- */
 
-      setProducts(updatedProducts);
+      if (
+        Array.isArray(
+          product.categoryIds
+        )
+      ) {
+        for (
+          const id of
+            product.categoryIds
+        ) {
+          const found =
+            categories.find(
+              (category) =>
+                String(
+                  category.id
+                ) ===
+                String(id)
+            );
+
+          if (found) {
+            categoryId =
+              String(
+                found.id
+              );
+
+            break;
+          }
+        }
+      }
+
+      /* ---------------------------------------------------
+         FALLBACK CATEGORY NAME
+      --------------------------------------------------- */
+
+      if (
+        !categoryId &&
+        product.category
+      ) {
+        const found =
+          categories.find(
+            (category) =>
+              String(
+                category.name
+              )
+                .trim()
+                .toLowerCase() ===
+              String(
+                product.category
+              )
+                .trim()
+                .toLowerCase()
+          );
+
+        if (found) {
+          categoryId =
+            String(
+              found.id
+            );
+        }
+      }
+
+      /* ---------------------------------------------------
+         TAX
+      --------------------------------------------------- */
+
+      const taxEnabled =
+        product.taxEnabled !==
+        false;
+
+      const taxRate =
+        product.taxRate !==
+          undefined &&
+        product.taxRate !==
+          null
+          ? Number(
+              product.taxRate
+            )
+          : taxEnabled
+          ? 5
+          : 0;
+
+      /* ---------------------------------------------------
+         FORM
+      --------------------------------------------------- */
+
+      setEditingProduct(
+        product
+      );
+
+      setForm({
+        name:
+          product.name ||
+          "",
+
+        sku:
+          product.sku ||
+          "",
+
+        price:
+          product.price ??
+          "",
+
+        quantity:
+          product.quantity ??
+          0,
+
+        categoryId,
+
+        taxEnabled,
+
+        taxRate,
+      });
+
+      setError("");
+
+      setShowModal(true);
+    };
+
+  /* =======================================================
+     CLOSE
+  ======================================================= */
+
+  const handleCloseModal =
+    () => {
+      if (saving) {
+        return;
+      }
+
+      setShowModal(false);
+
+      setEditingProduct(
+        null
+      );
+
+      setForm({
+        ...EMPTY_FORM,
+      });
+
+      setError("");
+    };
+
+  /* =======================================================
+     INPUT
+  ======================================================= */
+
+  const handleChange = (
+    event
+  ) => {
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = event.target;
+
+    setForm(
+      (previous) => ({
+        ...previous,
+
+        [name]:
+          type ===
+          "checkbox"
+            ? checked
+            : value,
+      })
+    );
+
+    if (error) {
+      setError("");
     }
-
-    handleCloseModal();
   };
 
-  // Delete
+  /* =======================================================
+     TAX
+  ======================================================= */
 
-  const handleDelete = () => {
-    if (!productToDelete) {
-      return;
-    }
+  const handleTaxToggle =
+    () => {
+      setForm(
+        (previous) => {
+          const enabled =
+            !previous.taxEnabled;
 
-    deleteProduct(productToDelete.id);
+          return {
+            ...previous,
 
-    setProducts(getProducts());
+            taxEnabled:
+              enabled,
 
-    setProductToDelete(null);
-  };
+            taxRate:
+              enabled
+                ? Number(
+                    previous.taxRate
+                  ) > 0
+                  ? previous.taxRate
+                  : 5
+                : 0,
+          };
+        }
+      );
+    };
+
+  /* =======================================================
+     VALIDATE
+  ======================================================= */
+
+  const validateForm =
+    () => {
+      if (
+        !form.name.trim()
+      ) {
+        return "Product name is required";
+      }
+
+      if (
+        !form.sku.trim()
+      ) {
+        return "SKU is required";
+      }
+
+      if (
+        form.price === "" ||
+        Number(form.price) <
+          0
+      ) {
+        return "Enter a valid price";
+      }
+
+      if (
+        form.quantity === "" ||
+        Number(form.quantity) <
+          0
+      ) {
+        return "Enter a valid quantity";
+      }
+
+      if (
+        !form.categoryId
+      ) {
+        return "Please select a category";
+      }
+
+      if (
+        form.taxEnabled &&
+        (
+          form.taxRate ===
+            "" ||
+          Number(
+            form.taxRate
+          ) < 0 ||
+          Number(
+            form.taxRate
+          ) > 100
+        )
+      ) {
+        return "Enter a valid tax rate";
+      }
+
+      return "";
+    };
+
+  /* =======================================================
+     SAVE
+  ======================================================= */
+
+  const handleSaveProduct =
+    async (event) => {
+      event.preventDefault();
+
+      const validationError =
+        validateForm();
+
+      if (
+        validationError
+      ) {
+        setError(
+          validationError
+        );
+
+        return;
+      }
+
+      try {
+        setSaving(true);
+        setError("");
+
+        const cleanSku =
+          form.sku
+            .trim()
+            .toUpperCase();
+
+        /* -------------------------------------------------
+           CHECK SKU FOR NEW PRODUCT
+        ------------------------------------------------- */
+
+        if (!editingProduct) {
+          const result =
+            await checkProductSku(
+              cleanSku
+            );
+
+          if (result.exists) {
+            setError(
+              `SKU "${cleanSku}" already exists.`
+            );
+
+            setSaving(false);
+
+            return;
+          }
+        }
+
+        /* -------------------------------------------------
+           CATEGORY
+        ------------------------------------------------- */
+
+        const category =
+          categories.find(
+            (item) =>
+              String(
+                item.id
+              ) ===
+              String(
+                form.categoryId
+              )
+          );
+
+        if (!category) {
+          setError(
+            "Selected category is invalid."
+          );
+
+          setSaving(false);
+
+          return;
+        }
+
+        /* -------------------------------------------------
+           FINAL VALUES
+        ------------------------------------------------- */
+
+        const payload = {
+          name:
+            form.name.trim(),
+
+          sku: cleanSku,
+
+          price:
+            Number(form.price),
+
+          quantity:
+            Number(
+              form.quantity
+            ),
+
+          categoryId:
+            String(
+              category.id
+            ),
+
+          categoryName:
+            category.name,
+
+          taxEnabled:
+            Boolean(
+              form.taxEnabled
+            ),
+
+          taxRate:
+            form.taxEnabled
+              ? Number(
+                  form.taxRate
+                )
+              : 0,
+        };
+
+        console.log(
+          "================================"
+        );
+
+        console.log(
+          "SENDING PRODUCT PAYLOAD"
+        );
+
+        console.log(
+          payload
+        );
+
+        console.log(
+          "================================"
+        );
+
+        /* -------------------------------------------------
+           UPDATE
+        ------------------------------------------------- */
+
+        if (editingProduct) {
+          await updateProduct(
+            editingProduct.sku,
+            payload
+          );
+        }
+
+        /* -------------------------------------------------
+           CREATE
+        ------------------------------------------------- */
+
+        else {
+          await addProduct(
+            payload
+          );
+        }
+
+        /* -------------------------------------------------
+           RELOAD FROM MAGENTO
+        ------------------------------------------------- */
+
+        await loadData();
+
+        setShowModal(
+          false
+        );
+
+        setEditingProduct(
+          null
+        );
+
+        setForm({
+          ...EMPTY_FORM,
+        });
+
+        setError("");
+      } catch (err) {
+        console.error(
+          "SAVE PRODUCT ERROR:",
+          err
+        );
+
+        setError(
+          err.message ||
+            "Failed to save product"
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  /* =======================================================
+     DELETE
+  ======================================================= */
+
+  const handleDeleteClick =
+    (product) => {
+      setProductToDelete(
+        product
+      );
+
+      setError("");
+
+      setShowDeleteModal(
+        true
+      );
+    };
+
+  const handleCancelDelete =
+    () => {
+      if (saving) {
+        return;
+      }
+
+      setProductToDelete(
+        null
+      );
+
+      setShowDeleteModal(
+        false
+      );
+    };
+
+  const handleConfirmDelete =
+    async () => {
+      if (
+        !productToDelete
+      ) {
+        return;
+      }
+
+      try {
+        setSaving(true);
+        setError("");
+
+        await deleteProduct(
+          productToDelete.sku
+        );
+
+        await loadData();
+
+        setProductToDelete(
+          null
+        );
+
+        setShowDeleteModal(
+          false
+        );
+      } catch (err) {
+        console.error(
+          "DELETE ERROR:",
+          err
+        );
+
+        setError(
+          err.message ||
+            "Failed to delete product"
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
+
+  /* =======================================================
+     PRICE
+  ======================================================= */
+
+  const formatPrice =
+    (price) =>
+      `₹${Number(
+        price || 0
+      ).toFixed(2)}`;
+
+  /* =======================================================
+     UI
+  ======================================================= */
 
   return (
     <div className="products-page">
-      
-      {/* Page Header */}
+
+      {/* HEADER */}
 
       <div className="page-header">
-        <div>
-          <h2>Products</h2>
 
-          <p>Manage your restaurant products</p>
+        <div>
+          <h2>
+            Products
+          </h2>
+
+          <p>
+            Manage your products
+            and inventory
+          </p>
         </div>
 
-        <button className="add-btn" onClick={handleAddProduct}>
+        <button
+          type="button"
+          className="add-btn"
+          onClick={
+            handleAddProduct
+          }
+        >
           <Plus size={18} />
+
           Add Product
         </button>
+
       </div>
 
-      {/* Search */}
+      {/* ERROR */}
+
+      {error &&
+        !showModal && (
+          <div
+            style={{
+              marginBottom:
+                "16px",
+
+              padding:
+                "12px 14px",
+
+              borderRadius:
+                "8px",
+
+              background:
+                "#fef2f2",
+
+              color:
+                "#dc2626",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+      {/* TOOLBAR */}
 
       <div className="products-toolbar">
+
         <div className="search-box">
-          <Search size={19} />
+
+          <Search
+            size={18}
+          />
 
           <input
             type="text"
             placeholder="Search product or SKU..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value
+              )
+            }
           />
 
-          {searchTerm && (
+          {search && (
             <button
+              type="button"
               className="search-clear-btn"
-              onClick={() => setSearchTerm("")}
+              onClick={() =>
+                setSearch("")
+              }
             >
               <X size={16} />
             </button>
           )}
+
         </div>
 
-        <span className="product-count">
-          {filteredProducts.length} products
-        </span>
+        <div className="product-count">
+
+          {
+            filteredProducts.length
+          }{" "}
+
+          {filteredProducts.length ===
+          1
+            ? "product"
+            : "products"}
+
+        </div>
+
       </div>
 
-      {/* Product Table */}
+      {/* TABLE */}
 
       <div className="products-table-container">
-        {filteredProducts.length > 0 ? (
+
+        {loading ? (
+          <div className="empty-table">
+
+            <Package
+              size={40}
+            />
+
+            <h3>
+              Loading products...
+            </h3>
+
+            <p>
+              Fetching products
+              from Magento
+            </p>
+
+          </div>
+        ) : filteredProducts.length ===
+          0 ? (
+          <div className="empty-table">
+
+            <Package
+              size={40}
+            />
+
+            <h3>
+              No products found
+            </h3>
+
+            <p>
+              {search
+                ? "Try a different search"
+                : "Add your first product"}
+            </p>
+
+          </div>
+        ) : (
           <table className="products-table">
+
             <thead>
+
               <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Stock</th>
-                <th>Tax</th>
-                <th>Actions</th>
+
+                <th>
+                  Product
+                </th>
+
+                <th>
+                  SKU
+                </th>
+
+                <th>
+                  Category
+                </th>
+
+                <th>
+                  Price
+                </th>
+
+                <th>
+                  Stock
+                </th>
+
+                <th>
+                  Tax
+                </th>
+
+                <th>
+                  Actions
+                </th>
+
               </tr>
+
             </thead>
 
             <tbody>
-              {filteredProducts.map((product) => (
-                <tr key={product.id}>
-                  <td>
-                    <div className="product-name-cell">
-                      <div className="product-icon">
-                        <Package size={18} />
+
+              {filteredProducts.map(
+                (product) => (
+                  <tr
+                    key={
+                      product.id ||
+                      product.sku
+                    }
+                  >
+
+                    <td>
+
+                      <div className="product-name-cell">
+
+                        <div className="product-icon">
+
+                          <Package
+                            size={17}
+                          />
+
+                        </div>
+
+                        <strong>
+                          {
+                            product.name
+                          }
+                        </strong>
+
                       </div>
 
-                      <strong>{product.name}</strong>
-                    </div>
-                  </td>
+                    </td>
 
-                  <td>{product.sku}</td>
+                    <td>
+                      {
+                        product.sku
+                      }
+                    </td>
 
-                  <td>{product.category}</td>
+                    <td>
+                      {
+                        product.category ||
+                        "Uncategorized"
+                      }
+                    </td>
 
-                  <td>₹{product.price.toFixed(2)}</td>
+                    <td>
+                      {formatPrice(
+                        product.price
+                      )}
+                    </td>
 
-                  <td>{product.quantity}</td>
+                    <td>
+                      {Number(
+                        product.quantity ??
+                          0
+                      )}
+                    </td>
 
-                  <td>
-                    {product.taxEnabled ? (
-                      <span className="tax-badge">GST {product.taxRate}%</span>
-                    ) : (
-                      <span className="no-tax-badge">No Tax</span>
-                    )}
-                  </td>
+                    <td>
 
-                  <td>
-                    <div className="action-buttons">
-                      <button
-                        className="edit-btn"
-                        onClick={() => handleEditProduct(product)}
-                        title="Edit"
-                      >
-                        <Edit size={16} />
-                      </button>
+                      {product.taxEnabled ? (
+                        <span className="tax-badge">
 
-                      <button
-                        className="delete-btn"
-                        onClick={() => setProductToDelete(product)}
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          GST{" "}
+
+                          {Number(
+                            product.taxRate ??
+                              0
+                          )}
+
+                          %
+
+                        </span>
+                      ) : (
+                        <span className="no-tax-badge">
+                          No Tax
+                        </span>
+                      )}
+
+                    </td>
+
+                    <td>
+
+                      <div className="action-buttons">
+
+                        <button
+                          type="button"
+                          className="edit-btn"
+                          title="Edit product"
+                          onClick={() =>
+                            handleEditProduct(
+                              product
+                            )
+                          }
+                        >
+                          <Pencil
+                            size={16}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="delete-btn"
+                          title="Delete product"
+                          onClick={() =>
+                            handleDeleteClick(
+                              product
+                            )
+                          }
+                        >
+                          <Trash2
+                            size={16}
+                          />
+                        </button>
+
+                      </div>
+
+                    </td>
+
+                  </tr>
+                )
+              )}
+
             </tbody>
+
           </table>
-        ) : (
-          <div className="empty-table">
-            <Package size={45} />
-
-            <h3>No Products Found</h3>
-
-            <p>
-              {searchTerm
-                ? `No product matches "${searchTerm}"`
-                : "No products available"}
-            </p>
-
-            {searchTerm && (
-              <button
-                className="clear-search-btn-large"
-                onClick={() => setSearchTerm("")}
-              >
-                Clear Search
-              </button>
-            )}
-          </div>
         )}
+
       </div>
 
-     {/*  Add/Edit Modal */}
+      {/* =================================================
+          ADD / EDIT MODAL
+      ================================================= */}
 
-      {isModalOpen && (
+      {showModal && (
         <div className="product-modal-overlay">
+
           <div className="product-modal">
+
             <div className="modal-header">
+
               <div>
-                <h3>{editingProduct ? "Edit Product" : "Add Product"}</h3>
+
+                <h3>
+                  {editingProduct
+                    ? "Edit Product"
+                    : "Add Product"}
+                </h3>
 
                 <p>
                   {editingProduct
                     ? "Update product details"
-                    : "Add a new restaurant product"}
+                    : "Add a new product"}
                 </p>
+
               </div>
 
-              <button className="modal-close-btn" onClick={handleCloseModal}>
-                <X size={20} />
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={
+                  handleCloseModal
+                }
+                disabled={saving}
+              >
+                <X size={18} />
               </button>
+
             </div>
 
-            <form className="product-form" onSubmit={handleSubmit}>
-              {/* PRODUCT NAME */}
+            <form
+              className="product-form"
+              onSubmit={
+                handleSaveProduct
+              }
+            >
 
-              <div className="form-group">
-                <label>Product Name *</label>
+              {error && (
+                <div className="error-message">
+                  {error}
+                </div>
+              )}
 
-                <input
-                  type="text"
-                  name="name"
-                  placeholder="Enter product name"
-                  value={formData.name}
-                  onChange={handleChange}
-                />
-
-                {errors.name && (
-                  <span className="error-message">{errors.name}</span>
-                )}
-              </div>
-
-              {/* SKU */}
-
-              <div className="form-group">
-                <label>SKU *</label>
-
-                <input
-                  type="text"
-                  name="sku"
-                  placeholder="Example: FOOD-009"
-                  value={formData.sku}
-                  onChange={handleChange}
-                />
-
-                {errors.sku && (
-                  <span className="error-message">{errors.sku}</span>
-                )}
-              </div>
-
-              {/* CATEGORY */}
-
-              <div className="form-group">
-                <label>Category *</label>
-
-                <select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                >
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-
-                {errors.category && (
-                  <span className="error-message">{errors.category}</span>
-                )}
-              </div>
-
-              {/* PRICE + QUANTITY */}
+              {/* NAME / SKU */}
 
               <div className="form-row">
+
                 <div className="form-group">
-                  <label>Price *</label>
+
+                  <label>
+                    Product Name
+                  </label>
+
+                  <input
+                    type="text"
+                    name="name"
+                    value={
+                      form.name
+                    }
+                    placeholder="Enter product name"
+                    onChange={
+                      handleChange
+                    }
+                  />
+
+                </div>
+
+                <div className="form-group">
+
+                  <label>
+                    SKU
+                  </label>
+
+                  <input
+                    type="text"
+                    name="sku"
+                    value={
+                      form.sku
+                    }
+                    placeholder="Enter SKU"
+                    disabled={
+                      Boolean(
+                        editingProduct
+                      )
+                    }
+                    onChange={
+                      handleChange
+                    }
+                  />
+
+                </div>
+
+              </div>
+
+              {/* PRICE / QUANTITY */}
+
+              <div className="form-row">
+
+                <div className="form-group">
+
+                  <label>
+                    Price
+                  </label>
 
                   <input
                     type="number"
                     name="price"
                     min="0"
                     step="0.01"
-                    placeholder="0.00"
-                    value={formData.price}
-                    onChange={handleChange}
+                    value={
+                      form.price
+                    }
+                    onChange={
+                      handleChange
+                    }
                   />
 
-                  {errors.price && (
-                    <span className="error-message">{errors.price}</span>
-                  )}
                 </div>
 
                 <div className="form-group">
-                  <label>Stock Quantity *</label>
+
+                  <label>
+                    Quantity
+                  </label>
 
                   <input
                     type="number"
                     name="quantity"
                     min="0"
-                    placeholder="0"
-                    value={formData.quantity}
-                    onChange={handleChange}
+                    step="1"
+                    value={
+                      form.quantity
+                    }
+                    onChange={
+                      handleChange
+                    }
                   />
 
-                  {errors.quantity && (
-                    <span className="error-message">{errors.quantity}</span>
-                  )}
                 </div>
+
+              </div>
+
+              {/* CATEGORY */}
+
+              <div className="form-group">
+
+                <label>
+                  Category
+                </label>
+
+                <select
+                  name="categoryId"
+                  value={
+                    form.categoryId
+                  }
+                  onChange={
+                    handleChange
+                  }
+                >
+
+                  <option value="">
+                    Select category
+                  </option>
+
+                  {categories.map(
+                    (
+                      category
+                    ) => (
+                      <option
+                        key={
+                          category.id
+                        }
+                        value={
+                          category.id
+                        }
+                      >
+                        {
+                          category.name
+                        }
+                      </option>
+                    )
+                  )}
+
+                </select>
+
               </div>
 
               {/* TAX */}
 
               <div className="tax-section">
-                <div className="tax-toggle">
-                  <div>
-                    <strong>Enable GST</strong>
 
-                    <p>Apply GST for this product</p>
+                <div className="tax-toggle">
+
+                  <div>
+
+                    <strong>
+                      Enable GST
+                    </strong>
+
+                    <p>
+                      Apply GST to this
+                      product
+                    </p>
+
                   </div>
 
                   <label className="switch">
+
                     <input
                       type="checkbox"
-                      name="taxEnabled"
-                      checked={formData.taxEnabled}
-                      onChange={handleChange}
+                      checked={
+                        form.taxEnabled
+                      }
+                      onChange={
+                        handleTaxToggle
+                      }
                     />
 
                     <span className="slider" />
+
                   </label>
+
                 </div>
 
-                {formData.taxEnabled && (
-                  <div className="form-group">
-                    <label>GST Rate *</label>
-
-                    <select
-                      name="taxRate"
-                      value={formData.taxRate}
-                      onChange={handleChange}
+                {form.taxEnabled && (
+                  <>
+                    <div
+                      className="form-group"
+                      style={{
+                        marginTop:
+                          "16px",
+                      }}
                     >
-                      <option value="">Select GST Rate</option>
 
-                      {gstRates.map((rate) => (
-                        <option key={rate} value={rate}>
-                          {rate}%
-                        </option>
-                      ))}
-                    </select>
+                      <label>
+                        Tax Rate (%)
+                      </label>
 
-                    {errors.taxRate && (
-                      <span className="error-message">{errors.taxRate}</span>
-                    )}
-                  </div>
+                      <input
+                        type="number"
+                        name="taxRate"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={
+                          form.taxRate
+                        }
+                        onChange={
+                          handleChange
+                        }
+                      />
+
+                    </div>
+
+                    <div
+                      className="gst-preview"
+                      style={{
+                        marginTop:
+                          "12px",
+                      }}
+                    >
+
+                      <span>
+                        CGST
+                      </span>
+
+                      <strong>
+                        {(
+                          Number(
+                            form.taxRate
+                          ) / 2
+                        ).toFixed(2)}
+                        %
+                      </strong>
+
+                      <span>
+                        SGST
+                      </span>
+
+                      <strong>
+                        {(
+                          Number(
+                            form.taxRate
+                          ) / 2
+                        ).toFixed(2)}
+                        %
+                      </strong>
+
+                    </div>
+                  </>
                 )}
 
-                {formData.taxEnabled && formData.taxRate !== "" && (
-                  <div className="gst-preview">
-                    <span>CGST</span>
-
-                    <strong>{Number(formData.taxRate) / 2}%</strong>
-
-                    <span>SGST</span>
-
-                    <strong>{Number(formData.taxRate) / 2}%</strong>
-                  </div>
-                )}
               </div>
 
-              {/* BUTTONS */}
+              {/* ACTIONS */}
 
               <div className="modal-actions">
+
                 <button
                   type="button"
                   className="cancel-btn"
-                  onClick={handleCloseModal}
+                  onClick={
+                    handleCloseModal
+                  }
+                  disabled={saving}
                 >
                   Cancel
                 </button>
 
-                <button type="submit" className="save-btn">
-                  {editingProduct ? "Update Product" : "Save Product"}
+                <button
+                  type="submit"
+                  className="save-btn"
+                  disabled={saving}
+                >
+                  {saving
+                    ? "Saving..."
+                    : editingProduct
+                    ? "Update Product"
+                    : "Save Product"}
                 </button>
+
               </div>
+
             </form>
+
           </div>
+
         </div>
       )}
 
-{/* Delete Modal */}
+      {/* =================================================
+          DELETE
+      ================================================= */}
 
-      {productToDelete && (
-        <div className="product-modal-overlay">
-          <div className="delete-modal">
-            <div className="delete-icon">
-              <Trash2 size={24} />
+      {showDeleteModal &&
+        productToDelete && (
+          <div className="product-modal-overlay">
+
+            <div className="delete-modal">
+
+              <div className="delete-icon">
+
+                <Trash2
+                  size={22}
+                />
+
+              </div>
+
+              <h3>
+                Delete Product?
+              </h3>
+
+              <p>
+
+                Are you sure you want
+                to delete{" "}
+
+                <strong>
+                  {
+                    productToDelete.name
+                  }
+                </strong>
+                ?
+
+              </p>
+
+              <div className="modal-actions">
+
+                <button
+                  type="button"
+                  className="cancel-btn"
+                  onClick={
+                    handleCancelDelete
+                  }
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  className="confirm-delete-btn"
+                  onClick={
+                    handleConfirmDelete
+                  }
+                  disabled={saving}
+                >
+                  {saving
+                    ? "Deleting..."
+                    : "Delete Product"}
+                </button>
+
+              </div>
+
             </div>
 
-            <h3>Delete Product?</h3>
-
-            <p>
-              Are you sure you want to delete{" "}
-              <strong>{productToDelete.name}</strong>?
-            </p>
-
-            <div className="modal-actions">
-              <button
-                className="cancel-btn"
-                onClick={() => setProductToDelete(null)}
-              >
-                Cancel
-              </button>
-
-              <button className="confirm-delete-btn" onClick={handleDelete}>
-                Delete
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+
     </div>
   );
-}
+};
 
 export default Products;

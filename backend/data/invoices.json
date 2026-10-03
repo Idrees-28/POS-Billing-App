@@ -1,0 +1,344 @@
+[
+  {
+    "id": "INV-1790863802089",
+    "createdAt": "2026-10-01T14:10:07.646Z",
+    "customer": {
+      "id": 2,
+      "name": "Idrees M I",
+      "phone": "8838123672",
+      "email": "idreesjee2810@gmail.com",
+      "company": "",
+      "address": "1/65 Main road",
+      "createdAt": "2026-10-01 06:23:41"
+    },
+    "items": [
+      {
+        "id": 18,
+        "name": "BEEF",
+        "sku": "FOOD-150",
+        "price": 150,
+        "quantity": 1,
+        "taxEnabled": true,
+        "taxRate": 18,
+        "lineSubtotal": 150
+      }
+    ],
+    "subtotal": 150,
+    "discount": 0,
+    "cgst": 13.5,
+    "sgst": 13.5,
+    "tax": 27,
+    "total": 177,
+    "paymentMethod": "Cash",
+    "amountReceived": 177,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 9,
+    "magentoOrderNumber": "000000009",
+    "magentoInvoiceId": "9",
+    "shipped": true
+  },
+  {
+    "id": "INV-1790863798518",
+    "createdAt": "2026-10-01T14:10:03.837Z",
+    "customer": {
+      "id": 2,
+      "name": "Idrees M I",
+      "phone": "8838123672",
+      "email": "idreesjee2810@gmail.com",
+      "company": "",
+      "address": "1/65 Main road",
+      "createdAt": "2026-10-01 06:23:41"
+    },
+    "items": [
+      {
+        "id": 18,
+        "name": "BEEF",
+        "sku": "FOOD-150",
+        "price": 150,
+        "quantity": 1,
+        "taxEnabled": true,
+        "taxRate": 18,
+        "lineSubtotal": 150
+      }
+    ],
+    "subtotal": 150,
+    "discount": 0,
+    "cgst": 13.5,
+    "sgst": 13.5,
+    "tax": 27,
+    "total": 177,
+    "paymentMethod": "Cash",
+    "amountReceived": 177,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 8,
+    "magentoOrderNumber": "000000008",
+    "magentoInvoiceId": "8",
+    "shipped": true
+  },
+  {
+    "id": "INV-1790837351320",
+    "createdAt": "2026-10-01T06:49:13.514Z",
+    "customer": {
+      "id": 0,
+      "name": "Walk-in Customer",
+      "phone": "0000000000",
+      "email": "",
+      "company": "",
+      "address": ""
+    },
+    "items": [
+      {
+        "id": 15,
+        "name": "kaalan",
+        "sku": "FOOD-140",
+        "price": 40,
+        "quantity": 1,
+        "taxEnabled": false,
+        "taxRate": 0,
+        "lineSubtotal": 40
+      }
+    ],
+    "subtotal": 40,
+    "discount": 0,
+    "cgst": 0,
+    "sgst": 0,
+    "tax": 0,
+    "total": 40,
+    "paymentMethod": "Cash",
+    "amountReceived": 40,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 7,
+    "magentoOrderNumber": "000000007",
+    "magentoInvoiceId": "7",
+    "shipped": true
+  },
+  {
+    "id": "INV-1790837221897",
+    "createdAt": "2026-10-01T06:47:03.860Z",
+    "customer": {
+      "id": 3,
+      "name": "thoufik aslam",
+      "phone": "9999999999",
+      "email": "",
+      "company": "",
+      "address": "",
+      "createdAt": "2026-10-01 06:46:29"
+    },
+    "items": [
+      {
+        "id": 16,
+        "name": "DOSA",
+        "sku": "FOOD-144",
+        "price": 80,
+        "quantity": 1,
+        "taxEnabled": false,
+        "taxRate": 0,
+        "lineSubtotal": 80
+      }
+    ],
+    "subtotal": 80,
+    "discount": 0,
+    "cgst": 0,
+    "sgst": 0,
+    "tax": 0,
+    "total": 80,
+    "paymentMethod": "UPI",
+    "amountReceived": 80,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 6,
+    "magentoOrderNumber": "000000006",
+    "magentoInvoiceId": "6",
+    "shipped": true
+  },
+  {
+    "id": "INV-1790837081731",
+    "createdAt": "2026-10-01T06:44:43.704Z",
+    "customer": {
+      "id": 0,
+      "name": "Walk-in Customer",
+      "phone": "0000000000",
+      "email": "",
+      "company": "",
+      "address": ""
+    },
+    "items": [
+      {
+        "id": 14,
+        "name": "idiyappam",
+        "sku": "FOOD-141",
+        "price": 80,
+        "quantity": 1,
+        "taxEnabled": false,
+        "taxRate": 0,
+        "lineSubtotal": 80
+      }
+    ],
+    "subtotal": 80,
+    "discount": 0,
+    "cgst": 0,
+    "sgst": 0,
+    "tax": 0,
+    "total": 80,
+    "paymentMethod": "Cash",
+    "amountReceived": 80,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 5,
+    "magentoOrderNumber": "000000005",
+    "magentoInvoiceId": "5",
+    "shipped": true
+  },
+  {
+    "id": "INV-1790836967628",
+    "createdAt": "2026-10-01T06:42:49.371Z",
+    "customer": {
+      "id": 0,
+      "name": "Walk-in Customer",
+      "phone": "0000000000",
+      "email": "",
+      "company": "",
+      "address": ""
+    },
+    "items": [
+      {
+        "id": 14,
+        "name": "idiyappam",
+        "sku": "FOOD-141",
+        "price": 80,
+        "quantity": 2,
+        "taxEnabled": false,
+        "taxRate": 0,
+        "lineSubtotal": 160
+      }
+    ],
+    "subtotal": 160,
+    "discount": 0,
+    "cgst": 0,
+    "sgst": 0,
+    "tax": 0,
+    "total": 160,
+    "paymentMethod": "Cash",
+    "amountReceived": 160,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 4,
+    "magentoOrderNumber": "000000004",
+    "magentoInvoiceId": "4"
+  },
+  {
+    "id": "INV-1790835832333",
+    "createdAt": "2026-10-01T06:23:53.584Z",
+    "customer": {
+      "id": 2,
+      "name": "Idrees M I",
+      "phone": "8838123672",
+      "email": "idreesjee2810@gmail.com",
+      "company": "",
+      "address": "1/65 Main road",
+      "createdAt": "2026-10-01 06:23:41"
+    },
+    "items": [
+      {
+        "id": 14,
+        "name": "idiyappam",
+        "sku": "FOOD-141",
+        "price": 80,
+        "quantity": 1,
+        "taxEnabled": false,
+        "taxRate": 0,
+        "lineSubtotal": 80
+      }
+    ],
+    "subtotal": 80,
+    "discount": 0,
+    "cgst": 0,
+    "sgst": 0,
+    "tax": 0,
+    "total": 80,
+    "paymentMethod": "Cash",
+    "amountReceived": 80,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 3,
+    "magentoOrderNumber": "000000003",
+    "magentoInvoiceId": "3"
+  },
+  {
+    "id": "INV-1790835754394",
+    "createdAt": "2026-10-01T06:22:35.596Z",
+    "customer": {
+      "id": 0,
+      "name": "Walk-in Customer",
+      "phone": "0000000000",
+      "email": "",
+      "company": "",
+      "address": ""
+    },
+    "items": [
+      {
+        "id": 17,
+        "name": "PANNEER BUTTER MASALA",
+        "sku": "FOOD-148",
+        "price": 150,
+        "quantity": 1,
+        "taxEnabled": false,
+        "taxRate": 0,
+        "lineSubtotal": 150
+      }
+    ],
+    "subtotal": 150,
+    "discount": 0,
+    "cgst": 0,
+    "sgst": 0,
+    "tax": 0,
+    "total": 150,
+    "paymentMethod": "Cash",
+    "amountReceived": 150,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 2,
+    "magentoOrderNumber": "000000002",
+    "magentoInvoiceId": "2"
+  },
+  {
+    "id": "INV-1790835631570",
+    "createdAt": "2026-10-01T06:20:34.235Z",
+    "customer": {
+      "id": 0,
+      "name": "Walk-in Customer",
+      "phone": "0000000000",
+      "email": "",
+      "company": "",
+      "address": ""
+    },
+    "items": [
+      {
+        "id": 17,
+        "name": "PANNEER BUTTER MASALA",
+        "sku": "FOOD-148",
+        "price": 150,
+        "quantity": 1,
+        "taxEnabled": false,
+        "taxRate": 0,
+        "lineSubtotal": 150
+      }
+    ],
+    "subtotal": 150,
+    "discount": 0,
+    "cgst": 0,
+    "sgst": 0,
+    "tax": 0,
+    "total": 150,
+    "paymentMethod": "Cash",
+    "amountReceived": 150,
+    "change": 0,
+    "status": "Paid",
+    "magentoOrderId": 1,
+    "magentoOrderNumber": "000000001",
+    "magentoInvoiceId": "1"
+  }
+]
